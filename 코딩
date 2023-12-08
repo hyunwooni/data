@@ -1,0 +1,49 @@
+1. TMDB5000 영화데이터셋 로딩
+import pandas as pd
+import numpy as np
+import warnings; warnings.filterwarnings('ignore')
+
+movies = pd.read_csv('./tmdb-movie-metadata/tmdb_5000_movies.csv')
+movies_df = movies[['id', 'title', 'genres', 'vote_average', 'vote_count', 'popularity', 'keywords', 'overview']]
+movies_df.head(1)
+
+2. 데이터 가공
+from ast import literal_eval
+movies_df['genres'] = movies_df['genres'].apply(literal_eval)
+movies_df['keywords'] = movies_df['keywords'].apply(literal_eval)
+movies_df['genres'] = movies_df['genres'].apply(lambda x:[y['name'] for y in x])
+movies_df['keywords'] = movies_df['keywords'].apply(lambda x:[y['name'] for y in x])
+movies_df[['genres', 'keywords']][:1]
+
+3. 장르 콘텐츠 유사도 측정
+from sklearn.feature_extraction.text import CountVectorizer
+
+movies_df['genres_literal'] = movies_df['genres'].apply(lambda x:(' ').join(x))
+count_vect = CountVectorizer(min_df=0, ngram_range=(1,2))
+genre_mat = count_vect.fit_transform(movies_df['genres_literal'])
+print(genre_mat.shape)
+
+
+4. 코사인 유사도 계산
+from sklearn.metrics.pairwise import cosine_similarity
+
+genre_sim = cosine_similarity(genre_mat, genre_mat)
+print(genre_sim.shape)
+print(genre_sim[:1])
+
+genre_sim_sorted_ind = genre_sim.argsort()[:, ::-1]
+print(genre_sim_sorted_ind[:1])
+
+
+5. 장르 콘텐츠 필터링을 이용한 영화 추천
+def find_sim_movie(df, sorted_ind, title_name, top_n=10):
+
+title_movie = df[df['title'] == title_name]
+title_index = title_movie.index.values
+similar_indexes = sorted_ind[title_index, :(top_n)]
+print(similar_indexes)
+similar_indexes = similar_indexes.reshape(-1)
+return df.iloc[similar_indexes]
+
+similar_movies = find_sim_movie(movies_df, genre_sim_sorted_ind, 'The Godfather', 10)
+similar_movies[['title', 'vote_average']]
